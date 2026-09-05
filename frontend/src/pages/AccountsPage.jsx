@@ -1,0 +1,3 @@
+export default function AccountsPage() {
+  return <h1 className="text-xl font-semibold">Accounts</h1>;
+}
