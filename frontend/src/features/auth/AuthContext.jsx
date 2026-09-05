@@ -1,29 +1,46 @@
-import { createContext, useContext, useState } from "react";
+import { createContext, useContext, useState, useEffect } from "react";
+import {
+  seedUsers, saveCurrentUser, readCurrentUser, clearCurrentUser,
+} from "../../data/users";
 
 const AuthContext = createContext(null);
 
 export function AuthProvider({ children }) {
-  const [token, setToken] = useState(() => localStorage.getItem("access_token"));
-  const [role, setRole] = useState(() => localStorage.getItem("role"));
+  const [user, setUser] = useState(() => readCurrentUser());
 
-  const login = (accessToken, userRole) => {
-    localStorage.setItem("access_token", accessToken);
-    localStorage.setItem("role", userRole);
-    setToken(accessToken);
-    setRole(userRole);
+  useEffect(() => { seedUsers(); }, []);
+
+  const login = (userObj) => {
+    saveCurrentUser(userObj);
+    setUser(userObj);
   };
 
   const logout = () => {
-    localStorage.removeItem("access_token");
-    localStorage.removeItem("role");
-    setToken(null);
-    setRole(null);
+    clearCurrentUser();
+    setUser(null);
   };
 
-  const isAuthenticated = !!token;
+  // Keeps the session in sync after the user edits their own profile
+  const refreshUser = (userObj) => {
+    saveCurrentUser(userObj);
+    setUser(userObj);
+  };
+
+  const role = user?.role || null;                 // admin | accountant | contact
+  const contactType = user?.contactType || null;   // customer | vendor | null
+
+  // Handy single value: "admin" | "accountant" | "customer" | "vendor"
+  const effectiveRole = role === "contact" ? contactType : role;
 
   return (
-    <AuthContext.Provider value={{ token, role, isAuthenticated, login, logout }}>
+    <AuthContext.Provider
+      value={{
+        user, role, contactType, effectiveRole,
+        name: user?.name || null,
+        isAuthenticated: !!user,
+        login, logout, refreshUser,
+      }}
+    >
       {children}
     </AuthContext.Provider>
   );
@@ -31,8 +48,6 @@ export function AuthProvider({ children }) {
 
 export function useAuth() {
   const ctx = useContext(AuthContext);
-  if (!ctx) {
-    throw new Error("useAuth must be used inside AuthProvider");
-  }
+  if (!ctx) throw new Error("useAuth must be used inside AuthProvider");
   return ctx;
 }
