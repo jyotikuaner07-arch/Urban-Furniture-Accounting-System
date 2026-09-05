@@ -1,7 +1,7 @@
 from pydantic_settings import BaseSettings 
 
 class Settings(BaseSettings):
-    mongo_url: str
+    mongo_uri: str
     db_name: str
     jwt_secret: str
     jwt_algorithm: str = "HS256"
