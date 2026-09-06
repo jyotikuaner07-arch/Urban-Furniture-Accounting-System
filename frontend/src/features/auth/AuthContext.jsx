@@ -1,44 +1,67 @@
-import { createContext, useContext, useState, useEffect } from "react";
-import {
-  seedUsers, saveCurrentUser, readCurrentUser, clearCurrentUser,
-} from "../../data/users";
+import { createContext, useContext, useState } from "react";
 
 const AuthContext = createContext(null);
+const USER_KEY = "uf_current_user";
+
+// Backend role names differ from the ones the UI uses.
+// invoicing_user -> accountant, everything else passes through.
+const API_TO_UI_ROLE = {
+  admin: "admin",
+  invoicing_user: "accountant",
+  contact: "contact",
+};
 
 export function AuthProvider({ children }) {
-  const [user, setUser] = useState(() => readCurrentUser());
+  const [user, setUser] = useState(() => {
+    try {
+      return JSON.parse(localStorage.getItem(USER_KEY)) || null;
+    } catch {
+      return null;
+    }
+  });
 
-  useEffect(() => { seedUsers(); }, []);
+  // Takes the raw /auth/login response:
+  // { access_token, token_type, role, name, email }
+  const login = (tokenResponse) => {
+    // axiosClient's interceptor reads this exact key on every request.
+    localStorage.setItem("access_token", tokenResponse.access_token);
 
-  const login = (userObj) => {
-    saveCurrentUser(userObj);
-    setUser(userObj);
+    const u = {
+      name: tokenResponse.name,
+      email: tokenResponse.email,
+      apiRole: tokenResponse.role,
+      role: API_TO_UI_ROLE[tokenResponse.role] || tokenResponse.role,
+      avatar: null,
+    };
+
+    localStorage.setItem(USER_KEY, JSON.stringify(u));
+    setUser(u);
   };
 
   const logout = () => {
-    clearCurrentUser();
+    localStorage.removeItem("access_token");
+    localStorage.removeItem(USER_KEY);
     setUser(null);
   };
 
-  // Keeps the session in sync after the user edits their own profile
-  const refreshUser = (userObj) => {
-    saveCurrentUser(userObj);
-    setUser(userObj);
+  const refreshUser = (u) => {
+    localStorage.setItem(USER_KEY, JSON.stringify(u));
+    setUser(u);
   };
-
-  const role = user?.role || null;                 // admin | accountant | contact
-  const contactType = user?.contactType || null;   // customer | vendor | null
-
-  // Handy single value: "admin" | "accountant" | "customer" | "vendor"
-  const effectiveRole = role === "contact" ? contactType : role;
 
   return (
     <AuthContext.Provider
       value={{
-        user, role, contactType, effectiveRole,
+        user,
         name: user?.name || null,
+        role: user?.role || null,
+        // Backend has no customer/vendor split — contact is a single role.
+        contactType: null,
+        effectiveRole: user?.role || null,
         isAuthenticated: !!user,
-        login, logout, refreshUser,
+        login,
+        logout,
+        refreshUser,
       }}
     >
       {children}
